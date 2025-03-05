@@ -7,10 +7,7 @@ import re
 from urllib.parse import urlparse
 import json
 from pathlib import Path
-<<<<<<< HEAD
 import time
-=======
->>>>>>> 0a642abb7a1f7534c2f3453403ce494b5ddf2b80
 
 def clean_url(url):
     """Clean and validate URL."""
@@ -198,7 +195,6 @@ def get_browser_profiles(browser_name, browser_path):
                     with open(local_state_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         if "profile" in data and "info_cache" in data["profile"]:
-<<<<<<< HEAD
                             for profile_id, profile_info in data["profile"]["info_cache"].items():
                                 # Use the actual profile name if available, otherwise use the profile ID
                                 profile_name = profile_info.get("name", profile_id)
@@ -209,22 +205,11 @@ def get_browser_profiles(browser_name, browser_path):
     # If no profiles were found, add Default
     if not profiles:
         profiles["Default"] = "Default"
-=======
-                            for profile_name in data["profile"]["info_cache"]:
-                                profiles[profile_name] = profile_name
-                except (json.JSONDecodeError, KeyError):
-                    pass
-
-    # If no profiles were found, add Default
-    if not profiles:
-        profiles["Default"] = None
->>>>>>> 0a642abb7a1f7534c2f3453403ce494b5ddf2b80
 
     return profiles
 
 def open_links_in_browser(browser_name, browser_path, urls, profile=None):
     """Open a list of URLs in the specified browser with optional profile."""
-<<<<<<< HEAD
     if not urls:
         print("No valid URLs found.")
         return
@@ -269,46 +254,6 @@ def open_links_in_browser(browser_name, browser_path, urls, profile=None):
                 time.sleep(0.5)  # Add small delay between opens
             except subprocess.SubprocessError as e:
                 print(f"✗ Error opening {url}: {str(e)}")
-=======
-    if sys.platform == "darwin":  # macOS
-        for url in urls:
-            try:
-                cmd = ["open", "-a", browser_path]
-                
-                # Add profile arguments for supported browsers
-                if profile and profile != "default":
-                    if "Google Chrome" in browser_name:
-                        cmd.extend(["--args", "--profile-directory=" + profile])
-                    elif "Firefox" in browser_name:
-                        cmd.extend(["--args", "-P", profile])
-                    elif "Microsoft Edge" in browser_name:
-                        cmd.extend(["--args", "--profile-directory=" + profile])
-                    elif "Brave Browser" in browser_name:
-                        cmd.extend(["--args", "--profile-directory=" + profile])
-                
-                cmd.append(url)
-                subprocess.run(cmd)
-                print(f"Opening: {url}")
-            except subprocess.SubprocessError as e:
-                print(f"Error opening {url}: {str(e)}")
-    else:
-        for url in urls:
-            try:
-                cmd = [browser_path]
-                
-                # Add profile arguments for supported browsers
-                if profile and profile != "default":
-                    if "chrome" in browser_path.lower() or "edge" in browser_path.lower() or "brave" in browser_path.lower():
-                        cmd.append("--profile-directory=" + profile)
-                    elif "firefox" in browser_path.lower():
-                        cmd.extend(["-P", profile])
-                
-                cmd.append(url)
-                subprocess.run(cmd, capture_output=True, stderr=subprocess.PIPE)
-                print(f"Opening: {url}")
-            except subprocess.SubprocessError as e:
-                print(f"Error opening {url}: {str(e)}")
->>>>>>> 0a642abb7a1f7534c2f3453403ce494b5ddf2b80
 
 def main():
     # Detect installed browsers
