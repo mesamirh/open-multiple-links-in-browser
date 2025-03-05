@@ -5,6 +5,8 @@ import webbrowser
 from pathlib import Path
 import re
 from urllib.parse import urlparse
+import json
+from pathlib import Path
 
 def clean_url(url):
     """Clean and validate URL."""
@@ -148,38 +150,101 @@ def detect_browsers():
                     
     return browsers
 
-def open_links_in_browser(browser_name, browser_path, urls):
-    """Open a list of URLs in the specified browser."""
+def get_browser_profiles(browser_name, browser_path):
+    """Get available profiles for the selected browser."""
+    profiles = {}
+    
     if sys.platform == "darwin":  # macOS
-        browser_app = browser_path
+        user_data_paths = {
+            "Google Chrome": str(Path.home() / "Library/Application Support/Google/Chrome"),
+            "Microsoft Edge": str(Path.home() / "Library/Application Support/Microsoft Edge"),
+            "Brave Browser": str(Path.home() / "Library/Application Support/BraveSoftware/Brave-Browser"),
+            "Firefox": str(Path.home() / "Library/Application Support/Firefox/Profiles"),
+        }
+    elif sys.platform == "win32":  # Windows
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        user_data_paths = {
+            "Google Chrome": os.path.join(local_app_data, "Google/Chrome/User Data"),
+            "Microsoft Edge": os.path.join(local_app_data, "Microsoft/Edge/User Data"),
+            "Brave Browser": os.path.join(local_app_data, "BraveSoftware/Brave-Browser/User Data"),
+            "Firefox": os.path.join(os.environ.get("APPDATA", ""), "Mozilla/Firefox/Profiles"),
+        }
+    else:  # Linux
+        user_data_paths = {
+            "Google Chrome": str(Path.home() / ".config/google-chrome"),
+            "Microsoft Edge": str(Path.home() / ".config/microsoft-edge"),
+            "Brave Browser": str(Path.home() / ".config/BraveSoftware/Brave-Browser"),
+            "Firefox": str(Path.home() / ".mozilla/firefox"),
+        }
+
+    if browser_name in user_data_paths:
+        profile_path = Path(user_data_paths[browser_name])
+        
+        if "Firefox" in browser_name:
+            # Handle Firefox profiles
+            if profile_path.exists():
+                for profile in profile_path.glob("*.*/"):
+                    if (profile / "prefs.js").exists():
+                        profiles[profile.name] = str(profile)
+        else:
+            # Handle Chromium-based browsers
+            local_state_path = profile_path / "Local State"
+            if local_state_path.exists():
+                try:
+                    with open(local_state_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if "profile" in data and "info_cache" in data["profile"]:
+                            for profile_name in data["profile"]["info_cache"]:
+                                profiles[profile_name] = profile_name
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+    # If no profiles were found, add Default
+    if not profiles:
+        profiles["Default"] = None
+
+    return profiles
+
+def open_links_in_browser(browser_name, browser_path, urls, profile=None):
+    """Open a list of URLs in the specified browser with optional profile."""
+    if sys.platform == "darwin":  # macOS
         for url in urls:
             try:
-                subprocess.run(["open", "-a", browser_app, url])
+                cmd = ["open", "-a", browser_path]
+                
+                # Add profile arguments for supported browsers
+                if profile and profile != "default":
+                    if "Google Chrome" in browser_name:
+                        cmd.extend(["--args", "--profile-directory=" + profile])
+                    elif "Firefox" in browser_name:
+                        cmd.extend(["--args", "-P", profile])
+                    elif "Microsoft Edge" in browser_name:
+                        cmd.extend(["--args", "--profile-directory=" + profile])
+                    elif "Brave Browser" in browser_name:
+                        cmd.extend(["--args", "--profile-directory=" + profile])
+                
+                cmd.append(url)
+                subprocess.run(cmd)
                 print(f"Opening: {url}")
             except subprocess.SubprocessError as e:
                 print(f"Error opening {url}: {str(e)}")
-            
     else:
-        try:
-            # Try using webbrowser module first
-            browser = webbrowser.get(browser_path)
-            for url in urls:
-                try:
-                    browser.open_new_tab(url)
-                    print(f"Opening: {url}")
-                except Exception as e:
-                    print(f"Error opening {url}: {str(e)}")
-        except webbrowser.Error:
-            # Fallback to subprocess
-            print(f"Using fallback method for {browser_name}...")
-            for url in urls:
-                try:
-                    subprocess.run([browser_path, url], 
-                                 capture_output=True, 
-                                 stderr=subprocess.PIPE)
-                    print(f"Opening: {url}")
-                except subprocess.SubprocessError as e:
-                    print(f"Error opening {url}: {str(e)}")
+        for url in urls:
+            try:
+                cmd = [browser_path]
+                
+                # Add profile arguments for supported browsers
+                if profile and profile != "default":
+                    if "chrome" in browser_path.lower() or "edge" in browser_path.lower() or "brave" in browser_path.lower():
+                        cmd.append("--profile-directory=" + profile)
+                    elif "firefox" in browser_path.lower():
+                        cmd.extend(["-P", profile])
+                
+                cmd.append(url)
+                subprocess.run(cmd, capture_output=True, stderr=subprocess.PIPE)
+                print(f"Opening: {url}")
+            except subprocess.SubprocessError as e:
+                print(f"Error opening {url}: {str(e)}")
 
 def main():
     # Detect installed browsers
@@ -194,7 +259,7 @@ def main():
     for idx, browser in enumerate(browsers.keys(), 1):
         print(f"{idx}. {browser}")
         
-    # Get user selection
+    # Get user browser selection
     while True:
         try:
             choice = int(input("\nSelect a browser (enter number): "))
@@ -207,11 +272,33 @@ def main():
     selected_browser = list(browsers.keys())[choice - 1]
     browser_path = browsers[selected_browser]
     
+    # Get available profiles
+    profiles = get_browser_profiles(selected_browser, browser_path)
+    
+    if len(profiles) > 1:
+        print("\nAvailable profiles:")
+        for idx, profile in enumerate(profiles.keys(), 1):
+            print(f"{idx}. {profile}")
+        
+        # Get user profile selection
+        while True:
+            try:
+                profile_choice = int(input("\nSelect a profile (enter number): "))
+                if 1 <= profile_choice <= len(profiles):
+                    break
+                print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        selected_profile = list(profiles.keys())[profile_choice - 1]
+    else:
+        selected_profile = "default"
+    
     # Read and process URLs
     urls = read_urls_from_file("links.txt")
     
-    print(f"\nOpening URLs in {selected_browser}...")
-    open_links_in_browser(selected_browser, browser_path, urls)
+    print(f"\nOpening URLs in {selected_browser} with profile '{selected_profile}'...")
+    open_links_in_browser(selected_browser, browser_path, urls, selected_profile)
     print("Done!")
 
 if __name__ == "__main__":
