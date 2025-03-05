@@ -1,0 +1,14 @@
+# add urls here script support any format
+
+github.com
+
+www.python.org
+
+https://stackoverflow.com
+   
+   google.com
+   
+example.com/page
+
+
+docs.python.org/3/
